@@ -18,7 +18,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 public class NetworkPoints extends JavaPlugin implements Listener {
 
 	static MineSQL minesql;
-	static String VERSION = "1.4";
+	static String VERSION = "1.5";
 
 	@Override
 	public void onEnable() {

@@ -2,6 +2,7 @@ package net.aerenserve.networkpoints;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.UUID;
 
 import net.aerenserve.minesql.MineSQL;
 
@@ -36,7 +37,7 @@ public class NetworkPoints extends JavaPlugin implements Listener {
 		String user = getConfig().getString("database.user");
 		String pass = getConfig().getString("database.pass");
 
-		minesql = new MineSQL(this, host, port, database, user, pass);
+		minesql = new MineSQL(host, port, database, user, pass);
 
 		try {
 			minesql.updateSQL("CREATE TABLE IF NOT EXISTS `playerpoints` (id int PRIMARY KEY AUTO_INCREMENT, username text, balance int);");
@@ -65,32 +66,41 @@ public class NetworkPoints extends JavaPlugin implements Listener {
 		if(cmd.getName().equalsIgnoreCase("points")) {
 			if(args.length >= 1) {
 				if(args[0].equalsIgnoreCase("get")) {
-					String account = null;
-					if(sender instanceof Player) account = sender.getName();
-					if(args.length > 1 && Bukkit.getPlayer(args[1]) != null) account = args[1];
+					UUID account = null;
+					if(sender instanceof Player) account = ((Player) sender).getUniqueId();
+					if(args.length > 1 && Bukkit.getPlayer(args[1]) != null) account = Bukkit.getPlayer(args[1]).getUniqueId();
 					if(account != null) {
 						sender.sendMessage(ChatColor.GRAY + "You currently have " + ChatColor.GREEN + getBalance(account) + ChatColor.GRAY + " points.");
 					} else sender.sendMessage("You must be a player to see your balance");
 				}
 				if(args[0].equalsIgnoreCase("add")) {
 					if(args.length >= 3) {
-						String account = args[1];
-						Integer amount = Integer.parseInt(args[2]);
-						addPoints(account, amount);
+						UUID account;
+						if(Bukkit.getPlayer(args[1]) != null) {
+							account = Bukkit.getPlayer(args[1]).getUniqueId();
+							Integer amount = Integer.parseInt(args[2]);
+							addPoints(account, amount);
+						} else sender.sendMessage(ChatColor.RED + "Cannot find that player!");
 					} else sender.sendMessage(ChatColor.RED + "Usage: /points add (player) (amount)");
 				}
 				if(args[0].equalsIgnoreCase("subtract")) {
 					if(args.length >= 3) {
-						String account = args[1];
-						Integer amount = Integer.parseInt(args[2]);
-						removePoints(account, amount);
+						UUID account;
+						if(Bukkit.getOfflinePlayer(args[1]) != null) {
+							account = Bukkit.getOfflinePlayer(args[1]).getUniqueId();
+							Integer amount = Integer.parseInt(args[2]);
+							removePoints(account, amount);
+						}
 					} else sender.sendMessage(ChatColor.RED + "Usage: /points subtract (player) (amount)");
 				}
 				if(args[0].equalsIgnoreCase("set")) {
 					if(args.length >= 3) {
-						String account = args[1];
-						Integer amount = Integer.parseInt(args[2]);
-						setBalance(account, amount);
+						UUID account;
+						if(Bukkit.getOfflinePlayer(args[1]) != null) {
+							account = Bukkit.getOfflinePlayer(args[1]).getUniqueId();
+							Integer amount = Integer.parseInt(args[2]);
+							setBalance(account, amount);
+						} else sender.sendMessage(ChatColor.RED + "Cannot find that player!");
 					} else sender.sendMessage(ChatColor.RED + "Usage: /points set (player) (amount)");
 				}
 
@@ -101,22 +111,22 @@ public class NetworkPoints extends JavaPlugin implements Listener {
 
 	@EventHandler
 	public void onPlayerJoin(PlayerJoinEvent e) {
-		createPlayer(e.getPlayer().getName());
+		createPlayer(e.getPlayer().getUniqueId());
 	}
 
-	public static void createPlayer(String playername) {
-		if(!playerExists(playername)) {
+	public static void createPlayer(UUID player) {
+		if(!playerExists(player)) {
 			try {
-				minesql.updateSQL("INSERT INTO playerpoints (username, balance) VALUES ('" + playername + "',0);");
+				minesql.updateSQL("INSERT INTO playerpoints (username, balance) VALUES ('" + player + "',0);");
 			} catch (SQLException e1) {
 				e1.printStackTrace();
 			}
 		}
 	}
 
-	public static boolean playerExists(String playername) {
+	public static boolean playerExists(UUID player) {
 		try {
-			ResultSet res = minesql.querySQL("SELECT * FROM playerpoints WHERE username = '" + playername + "';");
+			ResultSet res = minesql.querySQL("SELECT * FROM playerpoints WHERE username = '" + player.toString() + "';");
 			if(res.next()) {
 				if(res.getString("username") == null) {
 					return false;
@@ -132,16 +142,16 @@ public class NetworkPoints extends JavaPlugin implements Listener {
 		return false;
 	}
 
-	public static boolean checkTransaction(String playername, Integer amount) {
-		if(getBalance(playername) >= amount) return true;
+	public static boolean checkTransaction(UUID player, Integer amount) {
+		if(getBalance(player) >= amount) return true;
 		else return false;
 	}
 
-	public static Integer getBalance(String playername) {
+	public static Integer getBalance(UUID player) {
 		Integer retval = null;
-		if(playerExists(playername)) {
+		if(playerExists(player)) {
 			try {
-				ResultSet res = minesql.querySQL("SELECT * FROM playerpoints WHERE username = '" + playername + "';");
+				ResultSet res = minesql.querySQL("SELECT * FROM playerpoints WHERE username = '" + player.toString() + "';");
 				if(res.next()) {
 					if((Integer) res.getInt("balance") != null) {
 						retval = res.getInt("balance");
@@ -151,42 +161,42 @@ public class NetworkPoints extends JavaPlugin implements Listener {
 				e.printStackTrace();
 			}
 		} else {
-			createPlayer(playername);
-			getBalance(playername);
+			createPlayer(player);
+			getBalance(player);
 		}
 		return retval;
 
 	}
 
-	public static void addPoints(String playername, Integer amount) {
-		if(playerExists(playername)) {
-			setBalance(playername, (getBalance(playername) + amount));
+	public static void addPoints(UUID player, Integer amount) {
+		if(playerExists(player)) {
+			setBalance(player, (getBalance(player) + amount));
 		} else {
-			createPlayer(playername);
-			addPoints(playername, amount);  //This might be bad? time will tell
+			createPlayer(player);
+			addPoints(player, amount);  //This might be bad? time will tell
 		}
 	}
 
-	public static void setBalance(String playername, Integer amount) {
-		if(playerExists(playername)) {
+	public static void setBalance(UUID player, Integer amount) {
+		if(playerExists(player)) {
 			try {
-				minesql.updateSQL("UPDATE playerpoints SET balance=" + amount + " WHERE username='" + playername + "';");
+				minesql.updateSQL("UPDATE playerpoints SET balance=" + amount + " WHERE username='" + player.toString() + "';");
 			} catch (SQLException e) {
 				e.printStackTrace();
 			}
 		} else {
-			createPlayer(playername);
-			setBalance(playername, amount);
+			createPlayer(player);
+			setBalance(player, amount);
 		}
 	}
 
-	public static void removePoints(String playername, Integer amount) { //TODO add special exceptions
-		if(playerExists(playername)) {
-			if(checkTransaction(playername, amount)) {
-				setBalance(playername, (getBalance(playername) - amount));
+	public static void removePoints(UUID player, Integer amount) { //TODO add special exceptions
+		if(playerExists(player)) {
+			if(checkTransaction(player, amount)) {
+				setBalance(player, (getBalance(player) - amount));
 			}
 		} else {
-			createPlayer(playername);
+			createPlayer(player);
 		}
 	}
 }

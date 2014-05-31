@@ -1,11 +1,12 @@
 name: NetworkPoints
-version: 1.5 (1.7.2+)
+version: 1.6 (1.7.2+)
 description: API for adding points to a player's account using MySQL
 author: hatten33
 
 main: net.aerenserve.networkpoints.NetworkPoints
 
 depend: [MineSQLAPI]
+softdepend: [BossAPI]
 
 commands:
   points:
